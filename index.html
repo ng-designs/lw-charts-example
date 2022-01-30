@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0">
+    <title>Debug page</title>
+
+    <script type="text/javascript" src="./lightweight-charts.standalone.production.js"></script>
+    <!--<script type="text/javascript" src="./math.js"></script>-->    
+</head>
+
+<body style="padding: 0; margin: 0;">
+	<div id="container" style="position: absolute; width: 100%; height: 100%;"></div>
+
+	<script type="text/javascript">        
+
+        var chart = LightweightCharts.createChart(document.body, {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+            },
+            timeScale: {
+                timeVisible: true,
+                secondsVisible: false,
+                tickMarkFormatter: (time, tickMarkType, locale) => {
+                    console.log(time, tickMarkType, locale);
+                    const year = LightweightCharts.isBusinessDay(time) ? time.year : new Date(time * 1000).toLocaleTimeString('ru-RU');
+                    return String(year);
+                },
+            },
+        });
+
+        const barSeries = chart.addBarSeries({
+            thinBars: false,
+        });
+
+        var preload = [];        
+
+        //fetch('https://binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m')
+        fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m')
+            .then(response => response.json()).then(jsondata =>
+            {
+                //alert("Preloading data...");                
+
+                for (const kline of jsondata) {
+                    preload.push({ time: Math.floor(new Date(kline[0]).getTime() / 1000.0), open: kline[1], high: kline[2], low: kline[3], close: kline[4] })
+                }
+                barSeries.setData(preload);
+                
+            }
+        );        
+        //      
+        
+
+
+        // Symbol: ETH/USDT - Kline 30 minutes.
+        var socket = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@kline_1m');
+
+        // When message received from web socket then...
+        socket.onmessage = function (event) {
+            var wsdata = JSON.parse(event.data);
+            //alert(wsdata.E);
+
+            const wstime = Math.floor(new Date(wsdata.k.t).getTime() / 1000.0);
+
+            barSeries.update({ time: wstime , open: wsdata.k.o, high: wsdata.k.h, low: wsdata.k.l, close: wsdata.k.c });
+
+        };
+
+        window.addEventListener('resize', function (e) {
+            chart.applyOptions({ width: this.window.innerWidth, height: this.window.innerHeight });
+        });
+
+        window.addEventListener("beforeunload", function (e) {
+            socket.close(1000);
+        }, false);
+
+        
+	</script>
+    <style>
+        .go-to-realtime-button {
+            width: 27px;
+            height: 27px;
+            position: absolute;
+            display: none;
+            padding: 7px;
+            box-sizing: border-box;
+            font-size: 10px;
+            border-radius: 50%;
+            text-align: center;
+            z-index: 1000;
+            color: #B2B5BE;
+            background: rgba(250, 250, 250, 0.95);
+            box-shadow: 0 2px 5px 0 rgba(117, 134, 150, 0.45);
+        }
+    </style>
+</body>
+
+</html>
